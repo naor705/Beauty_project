@@ -338,6 +338,169 @@ program
     console.log(`Sent message ${msg.message_id} to chat ${msg.chat.id}`);
   });
 
+program
+  .command("telegram-demo")
+  .description(
+    "Full pipeline with REAL Telegram approval — runs research/report/select/generate, sends approval message to your phone, waits for ✅/❌ tap, then schedules + (DRY_RUN) publishes",
+  )
+  .option("--timeout <minutes>", "how long to wait for human approval", (v) => Number(v), 10)
+  .option("--type <type>", "content type", "faceless_video")
+  .option("--platform <platform>", "publish target", "instagram")
+  .option("--keep-data", "do not reset the database first", false)
+  .action(
+    async (opts: {
+      timeout: number;
+      type: ContentType;
+      platform: PublishPlatform;
+      keepData: boolean;
+    }) => {
+      const { env } = await import("../config/env.js");
+      if (env.notify.channel !== "telegram") {
+        console.error("NOTIFY_CHANNEL must be 'telegram' in .env");
+        process.exit(1);
+      }
+      const step = (n: number, msg: string) => console.log(`\n=== STEP ${n}: ${msg} ===`);
+
+      // Start bot loop in the background. signal aborted in finally to clean up.
+      const ac = new AbortController();
+      const botPromise = runTelegramBot({ signal: ac.signal });
+
+      try {
+        if (!opts.keepData) {
+          step(0, "reset database");
+          const { getDb } = await import("../db/client.js");
+          const db = getDb();
+          for (const t of [
+            "post_logs",
+            "scheduled_posts",
+            "approval_requests",
+            "generated_content",
+            "selected_trends",
+            "trend_insights",
+            "trend_reports",
+            "research_results",
+          ]) {
+            db.exec(`DELETE FROM ${t}`);
+          }
+          console.log("  cleared");
+        }
+
+        step(1, "research");
+        const research = await runResearchJob({ perSource: 10, includeOptional: true });
+        console.log(`  saved=${research.saved}`);
+
+        step(2, "trend analysis");
+        const report = await runTrendAnalysisJob({ windowDays: 3, topN: 10 });
+        console.log(`  report=${report.id}`);
+
+        const top = listTop(1)[0];
+        if (!top) throw new Error("no research results");
+
+        step(3, `select trend: "${top.title}"`);
+        const sel = createSelection({
+          report_id: report.id,
+          result_id: top.id,
+          content_type: opts.type,
+          target_platform: opts.platform,
+        });
+        console.log(`  selection=${sel.id}`);
+
+        step(4, "generate content (Claude + Blotato render)");
+        const content = await runContentGeneration({ selectedTrendId: sel.id });
+        console.log(`  content=${content.id}`);
+        console.log(`  asset:  ${content.asset_url}`);
+
+        step(5, `request approval via Telegram (waiting up to ${opts.timeout} min)`);
+        const approval = await requestApproval({ generatedContentId: content.id });
+        console.log(`  approval=${approval.id}`);
+        console.log(`  📱 Check your phone — tap ✅ or ❌ on the message from @Beauty_Research_Project_bot`);
+
+        const deadline = Date.now() + opts.timeout * 60_000;
+        let decided = approval;
+        const startWait = Date.now();
+        while (decided.status === "pending" && Date.now() < deadline) {
+          await new Promise((r) => setTimeout(r, 2_000));
+          decided = getApprovalById(approval.id) ?? decided;
+          const elapsedSec = Math.floor((Date.now() - startWait) / 1000);
+          if (elapsedSec % 30 === 0) console.log(`  ...still waiting (${elapsedSec}s)`);
+        }
+
+        if (decided.status === "pending") {
+          console.error(`\n⏱  Timed out after ${opts.timeout} min. Approval still pending.`);
+          console.error(`    You can still approve/reject later with:`);
+          console.error(`      npm run cli -- approve ${approval.id}`);
+          console.error(`      npm run cli -- reject  ${approval.id} --reason "..."`);
+          return;
+        }
+
+        if (decided.status === "rejected") {
+          console.log(`\n❌ REJECTED by ${decided.decided_by}: ${decided.reason ?? "(no reason)"}`);
+          console.log(`    Content row ${content.id} is preserved.`);
+          return;
+        }
+
+        console.log(`\n✅ APPROVED by ${decided.decided_by} at ${decided.decided_at}`);
+
+        step(6, "schedule (1 minute from now)");
+        const publishAt = new Date(Date.now() + 60_000).toISOString();
+        const posts = scheduleApprovedPost({
+          generatedContentId: content.id,
+          platform: opts.platform,
+          publishAt,
+        });
+        for (const p of posts) console.log(`  post=${p.id}  platform=${p.platform}`);
+
+        step(7, "publish-now (DRY_RUN respected)");
+        for (const p of posts) {
+          await executeScheduledPost(p.id);
+          for (const lg of listLogs(p.id)) {
+            console.log(`  [${lg.status}] ${lg.platform} attempt=${lg.attempt} — ${lg.message}`);
+          }
+        }
+
+        console.log(`\nDone. Inspect any artifact:`);
+        console.log(`  npm run cli -- show-content ${content.id}`);
+      } finally {
+        ac.abort();
+        // Bot loop exits on next poll iteration. Force-exit so we don't hang for ~25s.
+        setTimeout(() => process.exit(0), 100);
+      }
+    },
+  );
+
+program
+  .command("telegram-find-chat-id")
+  .description("Print chat IDs of any chats that recently messaged your bot (after you DM it)")
+  .action(async () => {
+    const me = await telegramGetMe();
+    console.log(`Bot identity: @${me.username} (id=${me.id})`);
+    const { getUpdates } = await import("../integrations/telegram.js");
+    const updates = await getUpdates(0);
+    if (updates.length === 0) {
+      console.log("\nNo updates found. Make sure you've sent your bot a message first:");
+      console.log(`  1. Open Telegram, search for @${me.username}`);
+      console.log(`  2. Send it any message (e.g. 'hi')`);
+      console.log(`  3. Re-run this command`);
+      return;
+    }
+    const chats = new Map<number, { name: string; lastMessage?: string }>();
+    for (const u of updates) {
+      const m = u.message ?? u.callback_query?.message;
+      if (!m) continue;
+      const id = m.chat.id;
+      const username = u.message?.from?.username ?? u.callback_query?.from?.username;
+      chats.set(id, {
+        name: username ? `@${username}` : `(no username, id=${id})`,
+        lastMessage: u.message?.text?.slice(0, 60),
+      });
+    }
+    console.log("\nChats that have messaged this bot:");
+    for (const [id, info] of chats) {
+      console.log(`  chat_id=${id}   ${info.name}${info.lastMessage ? `   last: "${info.lastMessage}"` : ""}`);
+    }
+    console.log("\nCopy the chat_id you want and paste it into .env as TELEGRAM_CHAT_ID.");
+  });
+
 // ---------------------- MCP ----------------------
 
 program
