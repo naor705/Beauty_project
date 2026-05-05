@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Beauty Researcher — Workflow Diagrams</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    :root {
+      --bg: #ffffff;
+      --fg: #1a1a1a;
+      --muted: #5a6678;
+      --accent: #c2185b;
+      --card-bg: #fafbfc;
+      --card-border: #e1e4e8;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0d1117;
+        --fg: #e6edf3;
+        --muted: #8b949e;
+        --accent: #f48fb1;
+        --card-bg: #161b22;
+        --card-border: #30363d;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 2rem 1rem;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 3rem;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 1.5rem;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 2rem;
+      color: var(--accent);
+    }
+    header p {
+      margin: 0.5rem 0 0;
+      color: var(--muted);
+    }
+    .diagram-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 2rem;
+      margin: 2rem 0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .diagram-card h2 {
+      margin: 0 0 0.5rem;
+      font-size: 1.4rem;
+      color: var(--accent);
+    }
+    .diagram-card .subtitle {
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin: 0 0 1.5rem;
+    }
+    .mermaid {
+      background: white;
+      border-radius: 8px;
+      padding: 1.5rem;
+      text-align: center;
+      overflow-x: auto;
+    }
+    .talking-points {
+      margin-top: 1.5rem;
+      padding: 1rem 1.25rem;
+      background: rgba(194, 24, 91, 0.05);
+      border-left: 3px solid var(--accent);
+      border-radius: 4px;
+      font-size: 0.95rem;
+    }
+    .talking-points strong { color: var(--accent); }
+    footer {
+      margin-top: 4rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--card-border);
+      text-align: center;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+    footer a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <header>
+      <h1>Beauty Researcher — Workflow</h1>
+      <p>AI Market Research + Content Creation Agent for beauty-care trends</p>
+    </header>
+
+    <!-- ===== Diagram 1 ===== -->
+    <div class="diagram-card">
+      <h2>1. The Big Picture</h2>
+      <p class="subtitle">Five steps from a viral trend to a published post. The simple story for a non-technical audience.</p>
+      <div class="mermaid">
+flowchart LR
+    A([🔍 Research<br/>TikTok + Instagram<br/>beauty trends])
+    B([📊 Analyze<br/>top 10 trends<br/>every 3 days])
+    C([✍️ Generate<br/>script + caption +<br/>video for chosen trend])
+    D([📱 Approve<br/>tap on phone<br/>via Telegram])
+    E([🚀 Publish<br/>TikTok + Instagram<br/>at scheduled time])
+
+    A --> B --> C --> D --> E
+
+    classDef step fill:#FCE4EC,stroke:#C2185B,stroke-width:2px,color:#000;
+    class A,B,C,D,E step;
+      </div>
+      <div class="talking-points">
+        <strong>Demo line:</strong> "AI does the heavy lifting — research and creation. You approve from your phone. Posts go out automatically."
+      </div>
+    </div>
+
+    <!-- ===== Diagram 2 ===== -->
+    <div class="diagram-card">
+      <h2>2. End-to-End Pipeline</h2>
+      <p class="subtitle">Four layers, color-coded by who does what. The "what makes this safe" slide.</p>
+      <div class="mermaid">
+flowchart TB
+    subgraph L1[" 🟢 LAYER 1 — Automated (cron, daily) "]
+        direction LR
+        Cron1[/⏰ Daily/]
+        Cron1 --> Res[Research Agent]
+        Res -->|fetch trends| TT[(TikTok)]
+        Res -->|fetch reels| IG[(Instagram)]
+        Res --> ResultsDB[(💾 research_results)]
+    end
+
+    subgraph L2[" 🟡 LAYER 2 — Automated (cron, every 3 days) "]
+        direction LR
+        Cron2[/⏰ Every 3 days/]
+        Cron2 --> Trend[Trend Analysis Agent]
+        Trend -->|rank top 10| ResultsDB
+        Trend -->|generate insights| Anthropic1[🤖 Claude]
+        Trend --> ReportDB[(💾 trend_reports)]
+    end
+
+    subgraph L3[" 🔵 LAYER 3 — Human picks, AI generates "]
+        direction LR
+        ReportDB --> Pick{User picks<br/>which trend}
+        Pick --> Content[Content Agent]
+        Content -->|hook + caption +<br/>script + scenes| Anthropic2[🤖 Claude]
+        Content -->|render video| Blotato1[🎬 Blotato]
+        Content --> ContentDB[(💾 generated_content)]
+    end
+
+    subgraph L4[" 🟣 LAYER 4 — Human approves, system publishes "]
+        direction LR
+        ContentDB --> ApReq[Approval Request]
+        ApReq -->|push| TG[💬 Telegram Bot]
+        TG --> Phone((📱 You))
+        Phone -->|tap ✅ or ❌| Decide{Approved?}
+        Decide -->|❌ Reject| Done1[🚫 Discarded]
+        Decide -->|✅ Approve| Schedule[(💾 scheduled_posts)]
+        Schedule -->|when due| PubTick[Publisher Tick<br/>every minute]
+        PubTick -->|publish| Blotato2[🎬 Blotato]
+        Blotato2 --> Live[(🌐 TikTok + Instagram)]
+    end
+
+    L1 --> L2 --> L3 --> L4
+
+    classDef auto fill:#E8F5E9,stroke:#2E7D32,color:#000;
+    classDef report fill:#FFF8E1,stroke:#F9A825,color:#000;
+    classDef human fill:#E3F2FD,stroke:#1565C0,color:#000;
+    classDef publish fill:#F3E5F5,stroke:#6A1B9A,color:#000;
+    class L1 auto;
+    class L2 report;
+    class L3 human;
+    class L4 publish;
+      </div>
+      <div class="talking-points">
+        <strong>Talking points:</strong>
+        <ul>
+          <li>Green + yellow layers run on a schedule with <strong>zero human input</strong></li>
+          <li>Blue is the only step where you decide <em>what</em> to make</li>
+          <li>Purple is <strong>gated by your tap</strong> — nothing publishes without explicit approval</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ===== Diagram 3 ===== -->
+    <div class="diagram-card">
+      <h2>3. The Approval UX</h2>
+      <p class="subtitle">The moment that matters — generation, push to phone, tap, publish. The "wow" slide.</p>
+      <div class="mermaid">
+sequenceDiagram
+    autonumber
+    participant Sys as 🔧 Beauty Researcher
+    participant LLM as 🤖 Claude (Anthropic)
+    participant Vid as 🎬 Blotato
+    participant TG as 💬 Telegram
+    participant You as 📱 You (anywhere)
+
+    Sys->>LLM: Generate hook, caption,<br/>script, scenes for trend
+    LLM-->>Sys: Original content pack
+    Sys->>Vid: Render 9:16 vertical video<br/>from script + scenes
+    Vid-->>Sys: MP4 URL (~90 sec)
+
+    Sys->>TG: Send approval message<br/>with ✅ / ❌ buttons
+    TG->>You: 🔔 Push notification
+
+    Note over You: You read the<br/>script + caption,<br/>watch the video URL
+
+    You->>TG: Tap ✅ Approve
+
+    TG->>Sys: callback_query<br/>(approve:approval_id)
+    Sys->>Sys: Update DB:<br/>status = approved
+    Sys->>TG: Edit message:<br/>"✅ APPROVED at 18:52"
+
+    Note over Sys: Cron tick every minute<br/>checks for due posts
+
+    Sys->>Vid: Submit post<br/>to TikTok + Instagram
+    Vid-->>Sys: Submission IDs
+
+    Note over Sys,You: Done. Post lives<br/>on your channels.
+      </div>
+      <div class="talking-points">
+        <strong>Demo line:</strong> "From discovering a viral trend to a published post on TikTok and Instagram — the only thing that touched a human was one tap on the phone."
+      </div>
+    </div>
+
+    <!-- ===== Diagram 4 ===== -->
+    <div class="diagram-card">
+      <h2>4. Tech Stack</h2>
+      <p class="subtitle">For technical Q&A. Show only if asked "what's under the hood."</p>
+      <div class="mermaid">
+flowchart TB
+    subgraph Apis["External APIs"]
+        AntropicAPI["🤖 Anthropic Claude<br/>summaries, scripts, captions"]
+        BlotatoAPI["🎬 Blotato<br/>video render + multi-platform publish"]
+        TGAPI["💬 Telegram Bot API<br/>approval inbox"]
+        IGAPI["📷 Instagram Graph API<br/>research — TODO"]
+        TTAPI["🎵 TikTok Research API<br/>research — TODO"]
+    end
+
+    subgraph Core["Beauty Researcher  •  Node.js + TypeScript + SQLite"]
+        Sched["⏰ Scheduler<br/>node-cron"]
+        Agents["Agents:<br/>research • trend-analysis<br/>content • publishing<br/>approval • telegram-bot"]
+        DB["💾 SQLite<br/>research_results · trend_reports<br/>generated_content · approval_requests<br/>scheduled_posts · post_logs"]
+        MCP["🔌 MCP Tool Registry<br/>13 tool contracts<br/>ready for n8n / Claude SDK"]
+    end
+
+    subgraph UX["User-facing"]
+        CLI["💻 CLI<br/>40+ commands"]
+        Bat["🖱️ .bat launchers<br/>double-click on desktop"]
+        Phone["📱 Telegram bot<br/>tap to approve"]
+        Cloud["☁️ Railway-ready<br/>Dockerfile + railway.toml"]
+    end
+
+    Sched --> Agents
+    Agents --> AntropicAPI
+    Agents --> BlotatoAPI
+    Agents --> IGAPI
+    Agents --> TTAPI
+    Agents <--> DB
+    Agents --> TGAPI
+    MCP --> Agents
+    CLI --> Agents
+    Bat --> CLI
+    Phone <--> TGAPI
+
+    classDef ext fill:#FFF3E0,stroke:#E65100,color:#000;
+    classDef core fill:#E1F5FE,stroke:#0277BD,color:#000;
+    classDef ux fill:#F1F8E9,stroke:#558B2F,color:#000;
+    class Apis ext;
+    class Core core;
+    class UX ux;
+      </div>
+    </div>
+
+    <footer>
+      <p>To export any diagram as PNG/SVG for slides → copy the diagram code from
+        <a href="https://github.com/naor705/Beauty_project/blob/main/docs/WORKFLOW_DIAGRAM.md" target="_blank">WORKFLOW_DIAGRAM.md</a>
+        into <a href="https://mermaid.live" target="_blank">mermaid.live</a> → Actions → Download.</p>
+      <p>Generated by Beauty Researcher • <a href="https://github.com/naor705/Beauty_project" target="_blank">github.com/naor705/Beauty_project</a></p>
+    </footer>
+
+  </div>
+
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'default',
+      securityLevel: 'loose',
+      flowchart: { htmlLabels: true, curve: 'basis' },
+      sequence: { actorMargin: 60, messageMargin: 40 }
+    });
+  </script>
+
+</body>
+</html>
