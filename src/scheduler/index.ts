@@ -5,6 +5,7 @@ import { runResearchJob } from "../agents/research-agent.js";
 import { runTrendAnalysisJob } from "../agents/trend-analysis-agent.js";
 import { listPosts } from "../db/repositories/posts.js";
 import { executeScheduledPost } from "../agents/publishing-agent.js";
+import { runTelegramBot } from "../agents/telegram-bot.js";
 
 const log = createLogger("scheduler");
 
@@ -69,6 +70,17 @@ function start(): void {
       log.error("publisher tick failed", { err: err instanceof Error ? err.message : String(err) }),
     );
   });
+
+  // Telegram approval bot — only starts if the channel is configured. Runs in
+  // the same process as the cron jobs; non-blocking because runTelegramBot is async.
+  if (env.notify.channel === "telegram") {
+    const ac = new AbortController();
+    process.on("SIGINT", () => ac.abort());
+    process.on("SIGTERM", () => ac.abort());
+    runTelegramBot({ signal: ac.signal }).catch((err) =>
+      log.error("telegram bot crashed", { err: err instanceof Error ? err.message : String(err) }),
+    );
+  }
 
   log.info("scheduler running. Ctrl-C to stop.");
 }

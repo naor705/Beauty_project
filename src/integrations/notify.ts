@@ -1,13 +1,14 @@
 /**
  * Notification dispatcher. Channels: telegram | email | console.
  *
- * TODO(real):
- *   - Telegram: POST https://api.telegram.org/bot<token>/sendMessage with chat_id, text, parse_mode.
- *     For approval buttons, use reply_markup.inline_keyboard with callback_data carrying the approval id.
- *   - Email: nodemailer with the SMTP_* env vars; for HTML approvals use a transactional template.
+ * - Telegram: real implementation via src/integrations/telegram.ts. When an
+ *   approvalId is supplied, the message includes inline ✅ Approve / ❌ Reject
+ *   buttons whose callback_data is consumed by the bot polling loop.
+ * - Email: still a stub. TODO(real): nodemailer with the SMTP_* env vars.
  */
 import { env } from "../config/env.js";
 import { createLogger } from "../utils/logger.js";
+import { sendTelegramMessage } from "./telegram.js";
 
 const log = createLogger("notify");
 
@@ -48,9 +49,23 @@ export async function sendNotification(input: NotifyInput): Promise<NotifyResult
       log.warn("telegram channel selected but credentials missing");
       return { ok: false, channel, message: "missing TELEGRAM_BOT_TOKEN/CHAT_ID" };
     }
-    // TODO(real): fetch(`https://api.telegram.org/bot${token}/sendMessage`, ...)
-    log.warn("telegram send not yet implemented");
-    return { ok: false, channel, message: "telegram not implemented" };
+    try {
+      const text = `*${input.subject}*\n\n${input.body}`.slice(0, 4000); // Telegram cap is 4096
+      const buttons = input.approvalId
+        ? [
+            [
+              { text: "✅ Approve", callback_data: `approve:${input.approvalId}` },
+              { text: "❌ Reject", callback_data: `reject:${input.approvalId}` },
+            ],
+          ]
+        : undefined;
+      await sendTelegramMessage(text, { parseMode: "Markdown", buttons });
+      return { ok: true, channel, message: "telegram message sent" };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      log.error("telegram send failed", { err: msg });
+      return { ok: false, channel, message: msg };
+    }
   }
 
   if (channel === "email") {

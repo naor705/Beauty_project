@@ -19,6 +19,8 @@ import { listPendingApprovals } from "../db/repositories/approvals.js";
 import { listTools } from "../mcp/tools.js";
 import { closeDb } from "../db/client.js";
 import { listTemplates, getTemplate } from "../integrations/blotato.js";
+import { runTelegramBot } from "../agents/telegram-bot.js";
+import { getMe as telegramGetMe, sendTelegramMessage } from "../integrations/telegram.js";
 import type { ContentType, PublishPlatform } from "../types/index.js";
 
 const program = new Command();
@@ -310,6 +312,30 @@ program
     const t = await getTemplate(id);
     if (!t) return console.error("not found");
     console.log(JSON.stringify(t, null, 2));
+  });
+
+// ---------------------- Telegram bot ----------------------
+
+program
+  .command("telegram-bot")
+  .description("Run the Telegram approval bot loop (long-poll until Ctrl+C)")
+  .action(async () => {
+    const ac = new AbortController();
+    process.on("SIGINT", () => ac.abort());
+    process.on("SIGTERM", () => ac.abort());
+    await runTelegramBot({ signal: ac.signal });
+  });
+
+program
+  .command("telegram-test")
+  .description("Send a test message to TELEGRAM_CHAT_ID to confirm the bot setup")
+  .action(async () => {
+    const me = await telegramGetMe();
+    console.log(`Bot identity: @${me.username} (id=${me.id})`);
+    const msg = await sendTelegramMessage(
+      "✅ Beauty Researcher bot is connected.\n\nIf you can read this, your TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are set correctly.",
+    );
+    console.log(`Sent message ${msg.message_id} to chat ${msg.chat.id}`);
   });
 
 // ---------------------- MCP ----------------------
