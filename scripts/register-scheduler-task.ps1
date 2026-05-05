@@ -32,13 +32,14 @@ $trigger.Delay = "PT30S"
 
 # Run as the current user, hidden, do not stop on battery, retry once on failure.
 $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
+# ExecutionTimeLimit of 0 hours = no time limit (long-running daemon).
 $settings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries `
     -StartWhenAvailable `
     -RestartCount 1 `
     -RestartInterval (New-TimeSpan -Minutes 5) `
-    -ExecutionTimeLimit (New-TimeSpan -Hours 0) ` # 0 = no time limit (long-running daemon)
+    -ExecutionTimeLimit (New-TimeSpan -Hours 0) `
     -Hidden
 
 # Remove any prior registration so re-running this script is idempotent.

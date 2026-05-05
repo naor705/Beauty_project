@@ -19,34 +19,51 @@ async function tickPublisher(): Promise<void> {
   }
 }
 
+function isValidCron(expr: string | undefined): expr is string {
+  return !!expr && expr.trim().length > 0 && cron.validate(expr.trim());
+}
+
 function start(): void {
+  const researchExpr = env.schedule.research?.trim() ?? "";
+  const reportExpr = env.schedule.report?.trim() ?? "";
+
   log.info("scheduler starting", {
-    research: env.schedule.research,
-    report: env.schedule.report,
+    research: researchExpr || "(disabled — set RESEARCH_CRON in .env)",
+    report: reportExpr || "(disabled — set REPORT_CRON in .env)",
     tz: env.schedule.timezone,
   });
 
-  cron.schedule(
-    env.schedule.research,
-    () => {
-      runResearchJob().catch((err) =>
-        log.error("research cron failed", { err: err instanceof Error ? err.message : String(err) }),
-      );
-    },
-    { timezone: env.schedule.timezone },
-  );
+  if (isValidCron(researchExpr)) {
+    cron.schedule(
+      researchExpr,
+      () => {
+        runResearchJob().catch((err) =>
+          log.error("research cron failed", { err: err instanceof Error ? err.message : String(err) }),
+        );
+      },
+      { timezone: env.schedule.timezone },
+    );
+  } else if (researchExpr) {
+    log.warn(`RESEARCH_CRON value is invalid: "${researchExpr}" — research job will not fire`);
+  }
 
-  cron.schedule(
-    env.schedule.report,
-    () => {
-      runTrendAnalysisJob().catch((err) =>
-        log.error("report cron failed", { err: err instanceof Error ? err.message : String(err) }),
-      );
-    },
-    { timezone: env.schedule.timezone },
-  );
+  if (isValidCron(reportExpr)) {
+    cron.schedule(
+      reportExpr,
+      () => {
+        runTrendAnalysisJob().catch((err) =>
+          log.error("report cron failed", { err: err instanceof Error ? err.message : String(err) }),
+        );
+      },
+      { timezone: env.schedule.timezone },
+    );
+  } else if (reportExpr) {
+    log.warn(`REPORT_CRON value is invalid: "${reportExpr}" — report job will not fire`);
+  }
 
-  // Publisher tick every minute. Real production should use a queue (BullMQ/SQS).
+  // Publisher tick every minute — runs any due scheduled posts. Always on so
+  // posts you scheduled manually still fire even before you set research/report crons.
+  // Real production should use a queue (BullMQ/SQS).
   cron.schedule("* * * * *", () => {
     tickPublisher().catch((err) =>
       log.error("publisher tick failed", { err: err instanceof Error ? err.message : String(err) }),
