@@ -79,18 +79,34 @@ async function generateViaBlotato(input: VideoGenInput): Promise<VideoGenResult>
   let createPayload: { prompt?: string; inputs?: Record<string, unknown>; title: string };
 
   if (input.kind === "faceless" && input.scenes.length > 0) {
-    const scripts = splitVoiceoverIntoScenes(input.voiceoverText, input.scenes.length);
+    // Blotato's AI Story Video template renders most reliably with 4-5 scenes,
+    // and AI image prompts must stay under ~300 chars or generation often fails.
+    const MAX_SCENES = 5;
+    const MAX_MEDIA_PROMPT = 300;
+    const MAX_SCRIPT = 200;
+    const trimmed = input.scenes.map((s) => s.trim()).filter(Boolean).slice(0, MAX_SCENES);
+    const scripts = splitVoiceoverIntoScenes(input.voiceoverText, trimmed.length);
+    const sceneObjs = trimmed
+      .map((mediaPrompt, i) => ({
+        script: (scripts[i] ?? "").trim().slice(0, MAX_SCRIPT),
+        mediaPrompt: mediaPrompt.slice(0, MAX_MEDIA_PROMPT),
+      }))
+      .filter((s) => s.script.length > 0 && s.mediaPrompt.length > 0);
+
+    if (sceneObjs.length === 0) throw new Error("no usable scenes after filtering");
+
     const inputs = buildAiStoryVideoInputs({
-      scenes: input.scenes.map((mediaPrompt, i) => ({
-        script: scripts[i] ?? "",
-        mediaPrompt,
-      })),
+      scenes: sceneObjs,
       aspectRatio: "9:16",
       captionPosition: "bottom",
       trimToVoiceover: true,
     });
     createPayload = { inputs, title: `beauty-${Date.now()}` };
-    log.info("blotato faceless video — structured inputs", { sceneCount: input.scenes.length });
+    log.info("blotato faceless video — structured inputs", {
+      sceneCount: sceneObjs.length,
+      droppedFromInput: input.scenes.length - sceneObjs.length,
+      payload: JSON.stringify(inputs).slice(0, 600),
+    });
   } else {
     const prompt =
       input.kind === "faceless"

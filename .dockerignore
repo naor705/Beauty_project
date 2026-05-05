@@ -1,0 +1,16 @@
+node_modules
+dist
+data
+.env
+.env.local
+.git
+.gitignore
+*.log
+.DS_Store
+.idea
+.vscode
+docs
+README.md
+*.md
+*.bat
+scripts

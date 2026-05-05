@@ -32,8 +32,19 @@ const FORMAT_FALLBACK: Record<ResearchResult["content_format"], ContentFormat> =
 
 async function summarizeOne(result: ResearchResult): Promise<RawInsight> {
   const res = await callLLM({
-    system: "intent:trend_insight You analyze beauty-care social trends. Return strict JSON.",
+    system:
+      "intent:trend_insight You analyze beauty-care social trends. " +
+      "Output ONLY a single flat JSON object with EXACTLY these keys at the TOP level (no wrapper, no nesting): " +
+      "summary (string, 1-2 sentences), " +
+      "why_it_works (string, 1-2 sentences), " +
+      "hook (string, the opening line that earns attention), " +
+      "pain_point (string, the audience need this addresses), " +
+      "product_angle (string, how a beauty-care brand could repurpose this), " +
+      "content_idea (string, our original content concept inspired by this trend), " +
+      "recommended_format (one of: short_video, reel, image, carousel, text). " +
+      "Do NOT wrap your response in any outer key. Output valid JSON only.",
     json: true,
+    maxTokens: 2048,
     messages: [
       {
         role: "user",

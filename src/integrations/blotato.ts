@@ -299,26 +299,21 @@ export interface BuildAiStoryVideoInputsArgs {
 
 /**
  * Build the `inputs` object for Blotato's "AI Story Video with AI Voice" template.
- * Field names follow the template inputs documented at /v2/videos/templates.
+ * Minimal payload — only the fields whose accepted values we know. Optional
+ * fields are omitted so the template applies its own defaults.
  *
- * NOTE: `scenes[].mediaSource` is a union (AI-generated vs URL). We default to
- * the AI variant. If your template version uses a different discriminator
- * (e.g. `kind` instead of `type`), adjust here.
+ * NOTE: `scenes[].mediaSource` is a non-empty string — Blotato treats it as
+ * either an AI image prompt or a publicly accessible media URL.
+ * `voiceName` must be one of Blotato's enum values (Alice, Aria, Bill, Brian, ...).
  */
 export function buildAiStoryVideoInputs(args: BuildAiStoryVideoInputsArgs): Record<string, unknown> {
   return {
     scenes: args.scenes.map((s) => ({
       script: s.script,
-      mediaSource: { type: "ai", prompt: s.mediaPrompt ?? s.script },
+      mediaSource: s.mediaPrompt ?? s.script,
     })),
-    voiceName: args.voiceName ?? "default",
+    voiceName: args.voiceName ?? "Aria (American, expressive)",
     aspectRatio: args.aspectRatio ?? "9:16",
-    captionPosition: args.captionPosition ?? "bottom",
-    highlightColor: args.highlightColor ?? "#FFFFFF",
-    transition: args.transition ?? "fade",
-    aiImageModel: args.aiImageModel ?? "default",
-    animateAiImages: args.animateAiImages ?? true,
-    trimToVoiceover: args.trimToVoiceover ?? true,
   };
 }
 

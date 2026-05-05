@@ -5,7 +5,7 @@ import { generateVideo } from "../integrations/video-gen.js";
 import { findById as findResult } from "../db/repositories/research.js";
 import { listInsights } from "../db/repositories/reports.js";
 import { getSelection } from "../db/repositories/selections.js";
-import { createContent } from "../db/repositories/content.js";
+import { createContent, updateAsset } from "../db/repositories/content.js";
 import type { ContentType, GeneratedContent, TrendInsight } from "../types/index.js";
 
 const log = createLogger("agent:content");
@@ -33,10 +33,22 @@ async function generateContentPack(input: {
   const res = await callLLM({
     system:
       "intent:content_pack You create ORIGINAL content inspired by a trend. " +
-      "Never copy phrasing from the source. Output strict JSON with the keys: " +
-      "hook, caption, hashtags, cta, script, shot_list, image_prompt, video_prompt, " +
-      "voiceover_text, subtitles, visual_instructions.",
+      "Never copy phrasing from the source. " +
+      "Output ONLY a single flat JSON object with EXACTLY these keys at the TOP level (no wrapper): " +
+      "hook (string, the opening attention-grabber, max 80 chars), " +
+      "caption (string, the post body, may include line breaks), " +
+      "hashtags (array of 5-8 strings, each starting with #), " +
+      "cta (string, one-sentence call to action), " +
+      "script (string, full multi-scene script with scene timings), " +
+      "shot_list (array of 4-8 short shot description strings), " +
+      "image_prompt (string, detailed prompt for an image generator), " +
+      "video_prompt (string, detailed prompt for a video generator), " +
+      "voiceover_text (string, the words to be spoken, conversational tone), " +
+      "subtitles (string, SRT-formatted captions), " +
+      "visual_instructions (string, camera/lighting/composition notes). " +
+      "Output valid JSON only — no markdown fences, no commentary.",
     json: true,
+    maxTokens: 4096,
     messages: [
       {
         role: "user",
@@ -98,35 +110,8 @@ export async function runContentGeneration(input: {
     resultHashtags: result.hashtags,
   });
 
-  let assetUrl: string | null = null;
-  let payload: unknown = null;
-
-  if (selection.content_type === "image") {
-    const img = await generateImage({ prompt: pack.image_prompt ?? "minimalist beauty product flat-lay" });
-    assetUrl = img.url;
-    payload = img.payload;
-  } else if (selection.content_type === "faceless_video") {
-    const vid = await generateVideo({
-      kind: "faceless",
-      script: pack.script ?? "",
-      scenes: pack.shot_list ?? [],
-      voiceoverText: pack.voiceover_text ?? "",
-      subtitlesSrt: pack.subtitles,
-      visualInstructions: pack.visual_instructions,
-    });
-    assetUrl = vid.url;
-    payload = vid.payload;
-  } else if (selection.content_type === "generated_video") {
-    const vid = await generateVideo({
-      kind: "generated",
-      prompt: pack.video_prompt ?? "vertical beauty short, 9:16, soft lighting, no faces",
-      durationSeconds: 15,
-    });
-    assetUrl = vid.url;
-    payload = vid.payload;
-  }
-  // caption_post needs no asset
-
+  // Save the LLM-generated content row first so a video-render failure doesn't
+  // throw away Claude's output. We update asset_url after a successful render.
   const saved = createContent({
     selected_trend_id: selection.id,
     content_type: selection.content_type,
@@ -141,10 +126,49 @@ export async function runContentGeneration(input: {
     voiceover_text: pack.voiceover_text ?? null,
     subtitles: pack.subtitles ?? null,
     visual_instructions: pack.visual_instructions ?? null,
-    asset_url: assetUrl,
-    generation_payload: payload,
+    asset_url: null,
+    generation_payload: null,
   });
+  log.info(`saved content ${saved.id} (${saved.content_type}) — rendering asset...`);
 
-  log.info(`generated content ${saved.id} (${saved.content_type})`);
-  return saved;
+  let assetUrl: string | null = null;
+  let payload: unknown = null;
+
+  try {
+    if (selection.content_type === "image") {
+      const img = await generateImage({
+        prompt: pack.image_prompt ?? "minimalist beauty product flat-lay",
+      });
+      assetUrl = img.url;
+      payload = img.payload;
+    } else if (selection.content_type === "faceless_video") {
+      const vid = await generateVideo({
+        kind: "faceless",
+        script: pack.script ?? "",
+        scenes: pack.shot_list ?? [],
+        voiceoverText: pack.voiceover_text ?? "",
+        subtitlesSrt: pack.subtitles,
+        visualInstructions: pack.visual_instructions,
+      });
+      assetUrl = vid.url;
+      payload = vid.payload;
+    } else if (selection.content_type === "generated_video") {
+      const vid = await generateVideo({
+        kind: "generated",
+        prompt: pack.video_prompt ?? "vertical beauty short, 9:16, soft lighting, no faces",
+        durationSeconds: 15,
+      });
+      assetUrl = vid.url;
+      payload = vid.payload;
+    }
+  } catch (err) {
+    log.error(`asset render failed for content ${saved.id}; row preserved with null asset_url`, {
+      err: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
+
+  if (assetUrl) updateAsset(saved.id, assetUrl, payload);
+  log.info(`content ${saved.id} done (asset=${assetUrl ?? "none"})`);
+  return updateAsset(saved.id, assetUrl ?? "", payload) ?? saved;
 }

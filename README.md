@@ -108,6 +108,7 @@ A simple stdin JSON-RPC loop runs via `npm run mcp`. Drop-in `@modelcontextproto
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — modules and data flow
 - [docs/DATABASE.md](docs/DATABASE.md) — schema and indexes
 - [docs/WORKFLOW.md](docs/WORKFLOW.md) — end-to-end happy path
+- [docs/DEPLOY.md](docs/DEPLOY.md) — three ways to run it (`.bat` launcher, Windows Task Scheduler, Railway cloud)
 - [docs/ROADMAP.md](docs/ROADMAP.md) — what to build next
 
 ## API key requirements (for going past MVP)

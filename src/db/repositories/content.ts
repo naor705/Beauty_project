@@ -81,6 +81,14 @@ export function getContent(id: string): GeneratedContent | null {
   return row ? toModel(row) : null;
 }
 
+export function updateAsset(id: string, assetUrl: string, payload: unknown): GeneratedContent | null {
+  const db = getDb();
+  db.prepare(
+    "UPDATE generated_content SET asset_url = ?, generation_payload = ? WHERE id = ?",
+  ).run(assetUrl, payload === undefined ? null : JSON.stringify(payload), id);
+  return getContent(id);
+}
+
 export function listForSelection(selectedTrendId: string): GeneratedContent[] {
   const rows = getDb()
     .prepare("SELECT * FROM generated_content WHERE selected_trend_id = ? ORDER BY created_at DESC")
