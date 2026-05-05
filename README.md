@@ -111,6 +111,7 @@ A simple stdin JSON-RPC loop runs via `npm run mcp`. Drop-in `@modelcontextproto
 - [docs/DEPLOY.md](docs/DEPLOY.md) — three ways to run it (`.bat` launcher, Windows Task Scheduler, Railway cloud)
 - [docs/TELEGRAM.md](docs/TELEGRAM.md) — Telegram approval bot: one-tap approve/reject from your phone
 - [docs/WORKFLOW_DIAGRAM.md](docs/WORKFLOW_DIAGRAM.md) — visual workflow diagrams (Mermaid) for demo meetings
+- [docs/ONBOARDING.md](docs/ONBOARDING.md) — full setup walkthrough for new collaborators (assume zero prior coding/git experience)
 - [docs/ROADMAP.md](docs/ROADMAP.md) — what to build next
 
 ## API key requirements (for going past MVP)
