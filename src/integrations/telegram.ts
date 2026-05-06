@@ -59,6 +59,10 @@ export interface SendMessageOpts {
 export interface TelegramMessage {
   message_id: number;
   chat: { id: number };
+  /** Present on sendVideo responses — useful for re-sending the same video to other chats. */
+  video?: { file_id: string; file_unique_id?: string };
+  /** Present on sendPhoto responses — array of photo sizes. Use any file_id to re-send. */
+  photo?: Array<{ file_id: string; file_unique_id?: string }>;
 }
 
 export async function sendTelegramMessage(text: string, opts: SendMessageOpts = {}): Promise<TelegramMessage> {
@@ -75,6 +79,98 @@ export async function sendTelegramMessage(text: string, opts: SendMessageOpts = 
     body.reply_markup = { inline_keyboard: opts.buttons };
   }
   return tg<TelegramMessage>("sendMessage", body);
+}
+
+export interface SendMediaOpts {
+  chatId?: string;
+  caption?: string;
+  parseMode?: SendMessageOpts["parseMode"];
+  buttons?: InlineButton[][];
+}
+
+/** True if the value looks like an http(s) URL; false implies a Telegram file_id. */
+function looksLikeUrl(s: string): boolean {
+  return /^https?:\/\//i.test(s);
+}
+
+/**
+ * Upload media to Telegram via multipart/form-data.
+ *
+ * Telegram has two modes to send media:
+ *   1) Pass a URL → Telegram fetches it. Brittle — Telegram blacklists URLs
+ *      that have failed recently, and Cloudflare may rate-limit Telegram's IPs.
+ *   2) Multipart upload → we download the file once, push the bytes to Telegram.
+ *      Bulletproof, and the response contains a file_id for cheap re-sends.
+ *
+ * This helper handles both: if `media` is a URL, download then upload;
+ * if `media` is already a file_id, just reference it (no upload needed).
+ */
+async function uploadMedia(
+  endpoint: "sendVideo" | "sendPhoto",
+  mediaField: "video" | "photo",
+  media: string,
+  opts: SendMediaOpts,
+  filename: string,
+): Promise<TelegramMessage> {
+  const chatId = opts.chatId ?? env.notify.telegramChatId;
+  if (!chatId) throw new Error("TELEGRAM_CHAT_ID not set and no chatId provided");
+
+  // Fast path: if `media` is a file_id (anything not http), just JSON-post it.
+  if (!looksLikeUrl(media)) {
+    const body: Record<string, unknown> = { chat_id: chatId, [mediaField]: media };
+    if (opts.caption) body.caption = opts.caption.slice(0, 1024);
+    if (opts.parseMode) body.parse_mode = opts.parseMode;
+    if (opts.buttons && opts.buttons.length > 0) {
+      body.reply_markup = { inline_keyboard: opts.buttons };
+    }
+    if (endpoint === "sendVideo") body.supports_streaming = true;
+    return tg<TelegramMessage>(endpoint, body);
+  }
+
+  // Slow path: download the URL ourselves, upload as multipart.
+  const downloadRes = await fetch(media);
+  if (!downloadRes.ok) {
+    throw new Error(`download ${media}: HTTP ${downloadRes.status}`);
+  }
+  const buf = Buffer.from(await downloadRes.arrayBuffer());
+  const blob = new Blob([buf], {
+    type: downloadRes.headers.get("content-type") ?? "application/octet-stream",
+  });
+
+  const form = new FormData();
+  form.append("chat_id", String(chatId));
+  form.append(mediaField, blob, filename);
+  if (opts.caption) form.append("caption", opts.caption.slice(0, 1024));
+  if (opts.parseMode) form.append("parse_mode", opts.parseMode);
+  if (opts.buttons && opts.buttons.length > 0) {
+    form.append("reply_markup", JSON.stringify({ inline_keyboard: opts.buttons }));
+  }
+  if (endpoint === "sendVideo") form.append("supports_streaming", "true");
+
+  const res = await fetch(`${baseUrl()}/${endpoint}`, { method: "POST", body: form });
+  const data = (await res.json()) as { ok: boolean; result?: TelegramMessage; description?: string };
+  if (!data.ok || !data.result) {
+    throw new Error(`telegram ${endpoint}: ${data.description ?? `HTTP ${res.status}`}`);
+  }
+  return data.result;
+}
+
+/**
+ * Send a video as a playable Telegram media message.
+ * Accepts either a URL (downloaded + uploaded) or a Telegram file_id (re-used).
+ * Caption max length 1024 chars. URL-based videos must be < 50 MB.
+ */
+export async function sendTelegramVideo(video: string, opts: SendMediaOpts = {}): Promise<TelegramMessage> {
+  return uploadMedia("sendVideo", "video", video, opts, "video.mp4");
+}
+
+/**
+ * Send a photo as a Telegram media message.
+ * Accepts either a URL or a Telegram file_id.
+ * Caption max length 1024 chars.
+ */
+export async function sendTelegramPhoto(photo: string, opts: SendMediaOpts = {}): Promise<TelegramMessage> {
+  return uploadMedia("sendPhoto", "photo", photo, opts, "photo.jpg");
 }
 
 export async function editMessageText(
