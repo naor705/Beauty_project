@@ -109,6 +109,14 @@ CREATE TABLE IF NOT EXISTS scheduled_posts (
 );
 CREATE INDEX IF NOT EXISTS idx_posts_status ON scheduled_posts(status, publish_at);
 
+-- Generic key/value cache. Used today for caching Instagram hashtag IDs
+-- (Graph API has a 30-unique-hashtags-per-7-days-per-user quota).
+CREATE TABLE IF NOT EXISTS kv_cache (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  expires_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS post_logs (
   id TEXT PRIMARY KEY,
   scheduled_post_id TEXT NOT NULL,

@@ -19,6 +19,7 @@ import { listPendingApprovals } from "../db/repositories/approvals.js";
 import { listTools } from "../mcp/tools.js";
 import { closeDb } from "../db/client.js";
 import { listTemplates, getTemplate } from "../integrations/blotato.js";
+import { igTest, searchBeautyReels } from "../integrations/instagram.js";
 import { runTelegramBot } from "../agents/telegram-bot.js";
 import { getMe as telegramGetMe, sendTelegramMessage } from "../integrations/telegram.js";
 import type { ContentType, PublishPlatform } from "../types/index.js";
@@ -312,6 +313,74 @@ program
     const t = await getTemplate(id);
     if (!t) return console.error("not found");
     console.log(JSON.stringify(t, null, 2));
+  });
+
+// ---------------------- Instagram research ----------------------
+
+program
+  .command("ig-test")
+  .description("Diagnose INSTAGRAM_ACCESS_TOKEN + BUSINESS_ACCOUNT_ID — auto-discovers the right IG Business Account ID")
+  .action(async () => {
+    const r = await igTest();
+    console.log("=== Instagram Graph API diagnostic ===\n");
+
+    if (r.me) {
+      console.log(`Token represents:        ${r.me.id} ${r.me.name ? `(${r.me.name})` : ""}`);
+    } else {
+      console.log("Token /me lookup failed — token may be invalid or expired");
+    }
+
+    if (r.permissions && r.permissions.length > 0) {
+      console.log(`Granted permissions:     ${r.permissions.join(", ")}`);
+    }
+
+    if (r.igBusinessAccount) {
+      console.log(
+        `Linked IG Business Acct: ${r.igBusinessAccount.id}` +
+          (r.igBusinessAccount.username ? ` (@${r.igBusinessAccount.username})` : "") +
+          (r.igBusinessAccount.name ? ` — ${r.igBusinessAccount.name}` : ""),
+      );
+    }
+
+    if (r.pages && r.pages.length > 0) {
+      console.log(`\nPages this token can manage (${r.pages.length}):`);
+      for (const p of r.pages) {
+        const ig = p.igBusinessAccountId
+          ? `IG=${p.igBusinessAccountId}${p.igUsername ? ` (@${p.igUsername})` : ""}`
+          : "no linked IG Business Account";
+        console.log(`  • Page ${p.id} — ${p.name}  →  ${ig}`);
+      }
+    }
+
+    console.log(`\nIn .env:`);
+    console.log(`  INSTAGRAM_BUSINESS_ACCOUNT_ID=${r.configuredAccountId || "(empty)"}`);
+    console.log(`  Works for hashtag search:    ${r.configuredAccountWorks ? "✅ yes" : "❌ no"}`);
+
+    if (r.notes.length > 0) {
+      console.log("\nNotes:");
+      for (const n of r.notes) console.log(`  • ${n}`);
+    }
+
+    if (r.configuredAccountWorks) {
+      console.log("\nReady. Run 'npm run cli -- ig-research' to fetch real beauty trends.");
+    } else if (r.igBusinessAccount) {
+      console.log(`\nFix: edit .env line for INSTAGRAM_BUSINESS_ACCOUNT_ID, paste ${r.igBusinessAccount.id}, save.`);
+    }
+  });
+
+program
+  .command("ig-research")
+  .description("Fetch real top beauty-care reels from Instagram (uses Graph API, no DB writes)")
+  .option("-l, --limit <n>", "how many to fetch", (v) => Number(v), 10)
+  .action(async (opts: { limit: number }) => {
+    const results = await searchBeautyReels({ niche: "beauty care", limit: opts.limit });
+    console.log(`Got ${results.length} results:\n`);
+    for (const r of results) {
+      console.log(`[${r.engagement_score}] ${r.creator} — ${r.title.slice(0, 80)}`);
+      console.log(`  url:    ${r.url}`);
+      console.log(`  format: ${r.content_format}, likes: ${r.likes}, comments: ${r.comments}`);
+      console.log("");
+    }
   });
 
 // ---------------------- Telegram bot ----------------------
