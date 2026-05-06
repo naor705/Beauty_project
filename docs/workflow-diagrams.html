@@ -136,9 +136,11 @@ flowchart TB
         direction LR
         Cron1[/⏰ Daily/]
         Cron1 --> Res[Research Agent]
-        Res -->|fetch trends| TT[(TikTok)]
-        Res -->|fetch reels| IG[(Instagram)]
-        Res --> ResultsDB[(💾 research_results)]
+        Res -->|RESEARCH_PROVIDER| Apify[🌐 Apify scrapers]
+        Apify -->|hashtag scraper| TT[(TikTok)]
+        Apify -->|hashtag scraper| IG[(Instagram)]
+        Res -.->|or graph API| IG
+        Res --> ResultsDB[(💾 research_results<br/>+ kv_cache)]
     end
 
     subgraph L2[" 🟡 LAYER 2 — Automated (cron, every 3 days) "]
@@ -244,14 +246,15 @@ flowchart TB
         AntropicAPI["🤖 Anthropic Claude<br/>summaries, scripts, captions"]
         BlotatoAPI["🎬 Blotato<br/>video render + multi-platform publish"]
         TGAPI["💬 Telegram Bot API<br/>approval inbox"]
-        IGAPI["📷 Instagram Graph API<br/>research — TODO"]
-        TTAPI["🎵 TikTok Research API<br/>research — TODO"]
+        ApifyAPI["🌐 Apify<br/>IG + TikTok hashtag scraping<br/>active research source"]
+        IGAPI["📷 Instagram Graph API<br/>alternative research, optional"]
+        TTAPI["🎵 TikTok Research API<br/>alternative research, optional"]
     end
 
     subgraph Core["Beauty Researcher  •  Node.js + TypeScript + SQLite"]
         Sched["⏰ Scheduler<br/>node-cron"]
         Agents["Agents:<br/>research • trend-analysis<br/>content • publishing<br/>approval • telegram-bot"]
-        DB["💾 SQLite<br/>research_results · trend_reports<br/>generated_content · approval_requests<br/>scheduled_posts · post_logs"]
+        DB["💾 SQLite<br/>research_results · trend_reports<br/>generated_content · approval_requests<br/>scheduled_posts · post_logs · kv_cache"]
         MCP["🔌 MCP Tool Registry<br/>13 tool contracts<br/>ready for n8n / Claude SDK"]
     end
 
@@ -265,8 +268,9 @@ flowchart TB
     Sched --> Agents
     Agents --> AntropicAPI
     Agents --> BlotatoAPI
-    Agents --> IGAPI
-    Agents --> TTAPI
+    Agents --> ApifyAPI
+    Agents -.-> IGAPI
+    Agents -.-> TTAPI
     Agents <--> DB
     Agents --> TGAPI
     MCP --> Agents
