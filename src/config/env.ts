@@ -72,6 +72,13 @@ export const env = {
     channel: str("NOTIFY_CHANNEL", "console") as "telegram" | "email" | "console",
     telegramToken: str("TELEGRAM_BOT_TOKEN"),
     telegramChatId: str("TELEGRAM_CHAT_ID"),
+    // Optional comma-separated list of additional chat IDs that receive a
+    // view-only copy of approval messages (no buttons; cannot approve).
+    // Useful when you want collaborators to be informed but only one person decides.
+    telegramViewerChatIds: str("TELEGRAM_VIEWER_CHAT_IDS")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
     emailFrom: str("EMAIL_FROM"),
     emailTo: str("EMAIL_TO"),
     smtpHost: str("SMTP_HOST"),

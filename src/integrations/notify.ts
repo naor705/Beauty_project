@@ -49,23 +49,48 @@ export async function sendNotification(input: NotifyInput): Promise<NotifyResult
       log.warn("telegram channel selected but credentials missing");
       return { ok: false, channel, message: "missing TELEGRAM_BOT_TOKEN/CHAT_ID" };
     }
+    // Plain text mode — URLs auto-link, no Markdown corruption. Telegram's
+    // Markdown parser mishandles underscores in URLs (e.g. /public_media/...
+    // inside Blotato CDN paths), turning a 200-OK URL into a broken tap target.
+    const text = `${input.subject}\n\n${input.body}`.slice(0, 4000); // Telegram cap is 4096
+    const approverButtons = input.approvalId
+      ? [
+          [
+            { text: "✅ Approve", callback_data: `approve:${input.approvalId}` },
+            { text: "❌ Reject", callback_data: `reject:${input.approvalId}` },
+          ],
+        ]
+      : undefined;
+
+    // 1) Approver gets the actionable message with buttons.
+    let approverOk = false;
     try {
-      const text = `*${input.subject}*\n\n${input.body}`.slice(0, 4000); // Telegram cap is 4096
-      const buttons = input.approvalId
-        ? [
-            [
-              { text: "✅ Approve", callback_data: `approve:${input.approvalId}` },
-              { text: "❌ Reject", callback_data: `reject:${input.approvalId}` },
-            ],
-          ]
-        : undefined;
-      await sendTelegramMessage(text, { parseMode: "Markdown", buttons });
-      return { ok: true, channel, message: "telegram message sent" };
+      await sendTelegramMessage(text, { buttons: approverButtons });
+      approverOk = true;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      log.error("telegram send failed", { err: msg });
-      return { ok: false, channel, message: msg };
+      log.error("telegram send to approver failed", { err: msg });
     }
+
+    // 2) Viewers get a view-only copy (no buttons). Failures here are non-fatal.
+    const viewers = env.notify.telegramViewerChatIds.filter(
+      (id) => id && id !== env.notify.telegramChatId, // never duplicate-deliver
+    );
+    if (viewers.length > 0) {
+      const viewerText = `${text}\n\n(view-only — only the approver can decide)`;
+      for (const chatId of viewers) {
+        try {
+          await sendTelegramMessage(viewerText, { chatId });
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          log.warn(`telegram view-only send to ${chatId} failed`, { err: msg });
+        }
+      }
+    }
+
+    return approverOk
+      ? { ok: true, channel, message: `telegram sent (1 approver + ${viewers.length} viewers)` }
+      : { ok: false, channel, message: "telegram send to approver failed" };
   }
 
   if (channel === "email") {
