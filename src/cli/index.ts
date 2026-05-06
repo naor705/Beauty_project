@@ -359,8 +359,12 @@ program
       console.log(`  ${tt.length} TikTok posts`);
     }
 
-    const all = [...ig, ...tt].sort((a, b) => b.engagement_score - a.engagement_score);
-    console.log(`\n=== Top ${Math.min(20, all.length)} across both platforms ===\n`);
+    // Dedupe by URL (Apify can return the same post under multiple hashtag queries).
+    const seen = new Set<string>();
+    const all = [...ig, ...tt]
+      .filter((r) => (seen.has(r.url) ? false : (seen.add(r.url), true)))
+      .sort((a, b) => b.engagement_score - a.engagement_score);
+    console.log(`\n=== Top ${Math.min(20, all.length)} across both platforms (${all.length} unique) ===\n`);
     for (const r of all.slice(0, 20)) {
       console.log(
         `[${String(r.engagement_score).padStart(8)}] ${r.platform.padEnd(10)} ${r.creator.padEnd(20)} ${r.title.slice(0, 70)}`,

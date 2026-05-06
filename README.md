@@ -113,6 +113,7 @@ A simple stdin JSON-RPC loop runs via `npm run mcp`. Drop-in `@modelcontextproto
 - [docs/WORKFLOW_DIAGRAM.md](docs/WORKFLOW_DIAGRAM.md) — visual workflow diagrams (Mermaid) for demo meetings
 - [docs/ONBOARDING.md](docs/ONBOARDING.md) — full setup walkthrough for new collaborators (assume zero prior coding/git experience)
 - [docs/META_SETUP.md](docs/META_SETUP.md) — Meta/Instagram Graph API setup so research uses real Instagram data
+- [docs/APIFY.md](docs/APIFY.md) — managed-scraping path to real IG + TikTok data via Apify (faster than Meta setup, costs ~$5/mo)
 - [docs/ROADMAP.md](docs/ROADMAP.md) — what to build next
 
 ## API key requirements (for going past MVP)
