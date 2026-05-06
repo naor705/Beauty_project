@@ -22,6 +22,7 @@ import { env } from "../config/env.js";
 import { computeEngagementScore } from "../utils/engagement.js";
 import { createLogger } from "../utils/logger.js";
 import { getCached, setCached } from "../db/repositories/cache.js";
+import { apifyInstagramHashtagSearch } from "./apify.js";
 import type { ResearchResult } from "../types/index.js";
 import type { PublishResult, TikTokPublishPayload } from "./tiktok.js";
 
@@ -152,14 +153,30 @@ function mapMediaToResult(m: HashtagMedia, sourceHashtag: string): ResearchResul
 
 export async function searchBeautyReels(input: InstagramSearchInput): Promise<ResearchResult[]> {
   const limit = input.limit ?? 10;
+  const provider = env.research.provider;
 
-  if (env.social.instagramToken && env.social.instagramAccountId) {
-    log.info(`searching instagram (real Graph API) niche="${input.niche}"`, { limit });
+  if (provider === "apify" && env.apify.token) {
+    log.info(`searching instagram (apify) niche="${input.niche}"`, { limit });
+    try {
+      const results = await apifyInstagramHashtagSearch(BEAUTY_HASHTAGS, limit);
+      // Apify returns a flat list; sort+dedupe+slice to match the contract.
+      const seen = new Set<string>();
+      const deduped = results.filter((r) => (seen.has(r.url) ? false : (seen.add(r.url), true)));
+      return deduped.sort((a, b) => b.engagement_score - a.engagement_score).slice(0, limit);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      log.error("apify instagram search failed; falling back to mock", { err: msg });
+      return mockSearchBeautyReels(input);
+    }
+  }
+
+  if (provider === "graph" && env.social.instagramToken && env.social.instagramAccountId) {
+    log.info(`searching instagram (graph api) niche="${input.niche}"`, { limit });
     try {
       return await realSearchBeautyReels(input);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      log.error("real instagram search failed; falling back to mock", { err: msg });
+      log.error("graph api instagram search failed; falling back to mock", { err: msg });
       return mockSearchBeautyReels(input);
     }
   }

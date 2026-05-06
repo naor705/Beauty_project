@@ -26,6 +26,10 @@ export const env = {
     openaiModel: str("OPENAI_MODEL", "gpt-4o-mini"),
   },
 
+  research: {
+    provider: str("RESEARCH_PROVIDER", "mock") as "mock" | "graph" | "apify",
+  },
+
   social: {
     tiktokKey: str("TIKTOK_API_KEY"),
     tiktokSecret: str("TIKTOK_API_SECRET"),
@@ -34,6 +38,12 @@ export const env = {
     youtubeKey: str("YOUTUBE_API_KEY"),
     redditId: str("REDDIT_CLIENT_ID"),
     redditSecret: str("REDDIT_CLIENT_SECRET"),
+  },
+
+  apify: {
+    token: str("APIFY_TOKEN"),
+    igActor: str("APIFY_IG_ACTOR", "apify/instagram-hashtag-scraper"),
+    ttActor: str("APIFY_TT_ACTOR", "clockworks/free-tiktok-scraper"),
   },
 
   image: {

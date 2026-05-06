@@ -20,6 +20,11 @@ import { listTools } from "../mcp/tools.js";
 import { closeDb } from "../db/client.js";
 import { listTemplates, getTemplate } from "../integrations/blotato.js";
 import { igTest, searchBeautyReels } from "../integrations/instagram.js";
+import {
+  apifyTest,
+  apifyInstagramHashtagSearch,
+  apifyTiktokHashtagSearch,
+} from "../integrations/apify.js";
 import { runTelegramBot } from "../agents/telegram-bot.js";
 import { getMe as telegramGetMe, sendTelegramMessage } from "../integrations/telegram.js";
 import type { ContentType, PublishPlatform } from "../types/index.js";
@@ -313,6 +318,55 @@ program
     const t = await getTemplate(id);
     if (!t) return console.error("not found");
     console.log(JSON.stringify(t, null, 2));
+  });
+
+// ---------------------- Apify (managed scraping) ----------------------
+
+program
+  .command("apify-test")
+  .description("Verify APIFY_TOKEN works (free — just hits /users/me)")
+  .action(async () => {
+    const r = await apifyTest();
+    console.log(`Apify connected:`);
+    console.log(`  user:    @${r.user.username} (id=${r.user.id})`);
+    if (r.user.email) console.log(`  email:   ${r.user.email}`);
+    if (r.plan?.id) console.log(`  plan:    ${r.plan.id}`);
+    console.log(`\nReady. Run 'npm run cli -- apify-research' to fetch real trends (will use credit).`);
+  });
+
+program
+  .command("apify-research")
+  .description(
+    "Fetch real top beauty posts from IG + TikTok via Apify (no DB writes; uses Apify credit)",
+  )
+  .option("-l, --limit <n>", "results per platform", (v) => Number(v), 20)
+  .option("--ig-only", "skip TikTok", false)
+  .option("--tt-only", "skip Instagram", false)
+  .action(async (opts: { limit: number; igOnly: boolean; ttOnly: boolean }) => {
+    const hashtags = ["skincare", "beautycare", "skincareroutine", "glassskin", "beautytips"];
+
+    let ig: Awaited<ReturnType<typeof apifyInstagramHashtagSearch>> = [];
+    let tt: Awaited<ReturnType<typeof apifyTiktokHashtagSearch>> = [];
+
+    if (!opts.ttOnly) {
+      console.log("Fetching from Instagram...");
+      ig = await apifyInstagramHashtagSearch(hashtags, opts.limit);
+      console.log(`  ${ig.length} IG posts`);
+    }
+    if (!opts.igOnly) {
+      console.log("Fetching from TikTok...");
+      tt = await apifyTiktokHashtagSearch(hashtags, opts.limit);
+      console.log(`  ${tt.length} TikTok posts`);
+    }
+
+    const all = [...ig, ...tt].sort((a, b) => b.engagement_score - a.engagement_score);
+    console.log(`\n=== Top ${Math.min(20, all.length)} across both platforms ===\n`);
+    for (const r of all.slice(0, 20)) {
+      console.log(
+        `[${String(r.engagement_score).padStart(8)}] ${r.platform.padEnd(10)} ${r.creator.padEnd(20)} ${r.title.slice(0, 70)}`,
+      );
+      console.log(`            ${r.url}`);
+    }
   });
 
 // ---------------------- Instagram research ----------------------

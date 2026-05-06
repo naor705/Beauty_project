@@ -10,11 +10,15 @@
  * can be tested end-to-end. Mock data shape mirrors the real API where reasonable.
  */
 import { nanoid } from "nanoid";
+import { env } from "../config/env.js";
 import { computeEngagementScore } from "../utils/engagement.js";
 import { createLogger } from "../utils/logger.js";
+import { apifyTiktokHashtagSearch } from "./apify.js";
 import type { ContentFormat, ResearchResult } from "../types/index.js";
 
 const log = createLogger("tiktok");
+
+const BEAUTY_HASHTAGS = ["skincare", "beautycare", "skincareroutine", "glassskin", "beautytips"];
 
 export interface TikTokSearchInput {
   niche: string;
@@ -48,7 +52,26 @@ const MOCK_HASHTAGS = [
 ];
 
 export async function searchBeautyTrends(input: TikTokSearchInput): Promise<ResearchResult[]> {
-  log.info(`searching tiktok for niche="${input.niche}"`, { limit: input.limit ?? 10 });
+  const limit = input.limit ?? 10;
+
+  if (env.research.provider === "apify" && env.apify.token) {
+    log.info(`searching tiktok (apify) niche="${input.niche}"`, { limit });
+    try {
+      const results = await apifyTiktokHashtagSearch(BEAUTY_HASHTAGS, limit);
+      const seen = new Set<string>();
+      const deduped = results.filter((r) => (seen.has(r.url) ? false : (seen.add(r.url), true)));
+      return deduped.sort((a, b) => b.engagement_score - a.engagement_score).slice(0, limit);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      log.error("apify tiktok search failed; falling back to mock", { err: msg });
+    }
+  }
+
+  log.info(`searching tiktok (mock) niche="${input.niche}"`, { limit });
+  return mockSearchBeautyTrends(input);
+}
+
+function mockSearchBeautyTrends(input: TikTokSearchInput): ResearchResult[] {
   const limit = Math.min(input.limit ?? 10, MOCK_TITLES.length);
   const now = new Date().toISOString();
 
