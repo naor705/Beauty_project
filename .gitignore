@@ -3,6 +3,8 @@ dist/
 data/
 .env
 .env.local
+env-for-partner.txt
+*-env.txt
 *.log
 .DS_Store
 .idea/
