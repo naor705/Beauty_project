@@ -312,7 +312,9 @@ export function buildAiStoryVideoInputs(args: BuildAiStoryVideoInputsArgs): Reco
       script: s.script,
       mediaSource: s.mediaPrompt ?? s.script,
     })),
-    voiceName: args.voiceName ?? "Aria (American, expressive)",
+    // Default sourced from env (BLOTATO_VOICE_NAME), falls back to a tasteful
+    // British female voice for beauty content. Override per-call via args.voiceName.
+    voiceName: args.voiceName ?? env.blotato.voiceName,
     aspectRatio: args.aspectRatio ?? "9:16",
   };
 }

@@ -66,6 +66,10 @@ export const env = {
     youtubeAccountId: str("BLOTATO_YOUTUBE_ACCOUNT_ID"),
     defaultVideoTemplateId: str("BLOTATO_DEFAULT_VIDEO_TEMPLATE_ID"),
     publishViaBlotato: bool("PUBLISH_VIA_BLOTATO", false),
+    // ElevenLabs voice used for AI-narrated faceless videos. Must be one of
+    // Blotato's enum values exactly. Run `npm run cli -- list-voices` to see
+    // current options, or check src/scripts/list-voices.ts.
+    voiceName: str("BLOTATO_VOICE_NAME", "Lily (British, warm)"),
   },
 
   notify: {

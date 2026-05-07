@@ -320,6 +320,28 @@ program
     console.log(JSON.stringify(t, null, 2));
   });
 
+program
+  .command("list-voices")
+  .description("List all AI narrator voices supported by Blotato's AI Story Video template")
+  .action(async () => {
+    const { listTemplates } = await import("../integrations/blotato.js");
+    const templateId = "/base/v2/ai-story-video/5903fe43-514d-40ee-a060-0d6628c5f8fd/v1";
+    const r = await listTemplates({ id: templateId, fields: "id,inputs" });
+    const t = r.items[0];
+    if (!t) return console.error("AI Story Video template not found");
+    interface InputSpec { name: string; type?: { values?: string[]; default?: string } }
+    const inputs = t.inputs as InputSpec[] | undefined;
+    const voiceInput = inputs?.find((i) => i.name === "voiceName");
+    const values = voiceInput?.type?.values ?? [];
+    const def = voiceInput?.type?.default;
+    console.log(`${values.length} voices available (default: ${def ?? "n/a"})\n`);
+    for (const v of values) {
+      const isCurrent = v === (process.env.BLOTATO_VOICE_NAME ?? "Lily (British, warm)");
+      console.log(`  ${isCurrent ? "→" : " "} ${v}`);
+    }
+    console.log(`\nTo change: edit BLOTATO_VOICE_NAME in .env, save, run a fresh demo.`);
+  });
+
 // ---------------------- Apify (managed scraping) ----------------------
 
 program
